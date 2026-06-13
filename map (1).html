@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>제주 주요 지점 거리 지도</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── 리셋 & 변수 ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sea:       #3B9EA8;
+      --sea-deep:  #1F6E78;
+      --lava:      #2D2D2D;
+      --sand:      #EDE8DF;
+      --citrus:    #E8773A;
+      --foam:      #F9F7F4;
+      --c-airport: #E8773A;   /* 공항   — 귤빛  */
+      --c-school:  #3B9EA8;   /* 여고   — 바다색 */
+      --c-univ:    #6B4F9E;   /* 대학교 — 보라  */
+      --panel-w:   340px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Noto Sans KR', sans-serif;
+      background: var(--foam);
+      color: var(--lava);
+      overflow: hidden;
+    }
+
+    /* ── 레이아웃 ── */
+    .layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ── 사이드 패널 ── */
+    .panel {
+      width: var(--panel-w);
+      min-width: var(--panel-w);
+      height: 100%;
+      background: var(--lava);
+      color: var(--sand);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 10;
+      box-shadow: 4px 0 20px rgba(0,0,0,0.25);
+    }
+
+    .panel-header {
+      padding: 1.8rem 1.6rem 1.2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .panel-header .eyebrow {
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--sea);
+      margin-bottom: 0.5rem;
+    }
+
+    .panel-header h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.4;
+    }
+
+    .panel-header p {
+      margin-top: 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 300;
+      color: rgba(237,232,223,0.55);
+      line-height: 1.7;
+    }
+
+    /* ── 마커 목록 ── */
+    .locations {
+      padding: 1.2rem 1.4rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .loc-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+      padding: 0.75rem 0;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .loc-item:hover { opacity: 0.8; }
+
+    .loc-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 3px;
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.12);
+    }
+
+    .loc-info { flex: 1; }
+
+    .loc-name {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #fff;
+    }
+
+    .loc-coord {
+      font-size: 0.72rem;
+      color: rgba(237,232,223,0.45);
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── 거리 테이블 ── */
+    .dist-section {
+      padding: 1.2rem 1.4rem;
+      flex: 1;
+    }
+
+    .dist-section h2 {
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--sea);
+      margin-bottom: 1rem;
+    }
+
+    .dist-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 0.7rem;
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      position: relative;
+    }
+
+    .dist-card:hover,
+    .dist-card.active {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .dist-card .route-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .dot-inline {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .route-arrow {
+      color: rgba(255,255,255,0.35);
+      font-size: 0.75rem;
+    }
+
+    .dist-km {
+      margin-top: 0.5rem;
+      font-size: 1.45rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+
+    .dist-sub {
+      font-size: 0.72rem;
+      color: rgba(237,232,223,0.45);
+      margin-top: 1px;
+    }
+
+    /* ── 지도 ── */
+    #map {
+      flex: 1;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* ── Leaflet 커스텀 마커 ── */
+    .custom-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .marker-pin {
+      width: 36px;
+      height: 36px;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: 2.5px solid #fff;
+    }
+
+    .marker-pin .marker-icon {
+      transform: rotate(45deg);
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    /* ── Leaflet 팝업 커스텀 ── */
+    .leaflet-popup-content-wrapper {
+      background: var(--lava);
+      color: var(--sand);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      padding: 0;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .leaflet-popup-tip { background: var(--lava); }
+
+    .leaflet-popup-content {
+      margin: 0;
+      padding: 1rem 1.2rem;
+      min-width: 180px;
+    }
+
+    .popup-name {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.3rem;
+    }
+
+    .popup-coord {
+      font-size: 0.72rem;
+      color: rgba(237,232,223,0.5);
+    }
+
+    .popup-distances {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .popup-dist-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      padding: 0.2rem 0;
+    }
+
+    .popup-dist-row .to-name { color: rgba(237,232,223,0.65); }
+    .popup-dist-row .to-km   { font-weight: 600; color: #fff; }
+
+    /* ── 거리선 툴팁 ── */
+    .line-tooltip {
+      background: var(--lava) !important;
+      color: #fff !important;
+      border: 1px solid rgba(255,255,255,0.15) !important;
+      border-radius: 4px !important;
+      font-size: 0.8rem !important;
+      font-family: 'Noto Sans KR', sans-serif !important;
+      padding: 4px 10px !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25) !important;
+    }
+
+    /* ── 반응형 ── */
+    @media (max-width: 700px) {
+      .layout { flex-direction: column; overflow: hidden; }
+
+      .panel {
+        width: 100%;
+        min-width: unset;
+        height: auto;
+        max-height: 44vh;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      }
+
+      #map { flex: 1; min-height: 56vh; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- 사이드 패널 -->
+  <aside class="panel">
+    <div class="panel-header">
+      <p class="eyebrow">Jeju Island</p>
+      <h1>제주 주요 지점<br>거리 안내</h1>
+      <p>세 지점 간 직선 거리를 표시합니다.<br>카드를 클릭하면 해당 구간이 강조됩니다.</p>
+    </div>
+
+    <!-- 마커 목록 -->
+    <div class="locations" id="locList"></div>
+
+    <!-- 거리 카드 -->
+    <div class="dist-section">
+      <h2>구간별 직선 거리</h2>
+      <div id="distCards"></div>
+    </div>
+  </aside>
+
+  <!-- 지도 -->
+  <div id="map"></div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+  /* ── 데이터 ── */
+  const PLACES = [
+    {
+      id: 'airport',
+      name: '제주국제공항',
+      nameShort: '공항',
+      icon: '✈',
+      color: '#E8773A',
+      lat: 33.5113,
+      lng: 126.4926,
+    },
+    {
+      id: 'school',
+      name: '제주중앙여자고등학교',
+      nameShort: '중앙여고',
+      icon: '🏫',
+      color: '#3B9EA8',
+      lat: 33.5139,
+      lng: 126.5219,
+    },
+    {
+      id: 'univ',
+      name: '제주대학교',
+      nameShort: '제주대',
+      icon: '🎓',
+      color: '#6B4F9E',
+      lat: 33.4507,
+      lng: 126.5706,
+    },
+  ];
+
+  /* ── Haversine 직선거리 (km) ── */
+  function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.asin(Math.sqrt(a));
+  }
+
+  /* ── 모든 쌍 거리 계산 ── */
+  const PAIRS = [];
+  for (let i = 0; i < PLACES.length; i++) {
+    for (let j = i + 1; j < PLACES.length; j++) {
+      const a = PLACES[i], b = PLACES[j];
+      const km = haversine(a.lat, a.lng, b.lat, b.lng);
+      PAIRS.push({ a, b, km });
+    }
+  }
+
+  /* ── 지도 초기화 ── */
+  const map = L.map('map', {
+    center: [33.4900, 126.5300],
+    zoom: 12,
+    zoomControl: true,
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 18,
+  }).addTo(map);
+
+  /* ── 커스텀 마커 아이콘 ── */
+  function makeIcon(place) {
+    return L.divIcon({
+      className: 'custom-marker',
+      html: `<div class="marker-pin" style="background:${place.color}">
+               <span class="marker-icon">${place.icon}</span>
+             </div>`,
+      iconSize: [36, 36],
+      iconAnchor: [18, 36],
+      popupAnchor: [0, -38],
+    });
+  }
+
+  /* ── 팝업 내용 ── */
+  function makePopupHTML(place) {
+    const others = PLACES.filter(p => p.id !== place.id);
+    const rows = others.map(o => {
+      const km = haversine(place.lat, place.lng, o.lat, o.lng);
+      return `<div class="popup-dist-row">
+        <span class="to-name">↗ ${o.nameShort}</span>
+        <span class="to-km">${km.toFixed(2)} km</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="popup-name">${place.icon} ${place.name}</div>
+            <div class="popup-coord">${place.lat.toFixed(4)}°N, ${place.lng.toFixed(4)}°E</div>
+            <div class="popup-distances">${rows}</div>`;
+  }
+
+  /* ── 마커 등록 ── */
+  const markers = {};
+  PLACES.forEach(place => {
+    const marker = L.marker([place.lat, place.lng], { icon: makeIcon(place) })
+      .addTo(map)
+      .bindPopup(makePopupHTML(place), { maxWidth: 260 });
+    markers[place.id] = marker;
+  });
+
+  /* ── 거리선 (polyline) ── */
+  const lines = {};
+  PAIRS.forEach((pair, idx) => {
+    const latlngs = [[pair.a.lat, pair.a.lng], [pair.b.lat, pair.b.lng]];
+
+    // 그라디언트 느낌 — 두 색의 중간색
+    const line = L.polyline(latlngs, {
+      color: pair.a.color,
+      weight: 2.5,
+      opacity: 0.55,
+      dashArray: '6 5',
+    }).addTo(map);
+
+    line.bindTooltip(
+      `${pair.a.nameShort} ↔ ${pair.b.nameShort}&nbsp;&nbsp;<strong>${pair.km.toFixed(2)} km</strong>`,
+      { permanent: false, direction: 'center', className: 'line-tooltip' }
+    );
+
+    lines[idx] = line;
+  });
+
+  /* ── 사이드 패널: 마커 목록 ── */
+  const locList = document.getElementById('locList');
+  PLACES.forEach(place => {
+    const el = document.createElement('div');
+    el.className = 'loc-item';
+    el.innerHTML = `
+      <div class="loc-dot" style="background:${place.color}"></div>
+      <div class="loc-info">
+        <div class="loc-name">${place.name}</div>
+        <div class="loc-coord">${place.lat.toFixed(4)}°N, ${place.lng.toFixed(4)}°E</div>
+      </div>`;
+    el.addEventListener('click', () => {
+      map.setView([place.lat, place.lng], 14, { animate: true });
+      markers[place.id].openPopup();
+    });
+    locList.appendChild(el);
+  });
+
+  /* ── 사이드 패널: 거리 카드 ── */
+  const distCards = document.getElementById('distCards');
+  PAIRS.forEach((pair, idx) => {
+    const card = document.createElement('div');
+    card.className = 'dist-card';
+    card.style.borderLeftColor = pair.a.color;
+    card.innerHTML = `
+      <div class="route-label">
+        <span class="dot-inline" style="background:${pair.a.color}"></span>
+        ${pair.a.nameShort}
+        <span class="route-arrow">→</span>
+        <span class="dot-inline" style="background:${pair.b.color}"></span>
+        ${pair.b.nameShort}
+      </div>
+      <div class="dist-km" style="color:${pair.a.color}">${pair.km.toFixed(2)} <small style="font-size:0.9rem;font-weight:400;">km</small></div>
+      <div class="dist-sub">직선 거리 기준</div>`;
+
+    card.addEventListener('click', () => {
+      // 활성 토글
+      document.querySelectorAll('.dist-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+
+      // 선 강조
+      PAIRS.forEach((_, i) => {
+        lines[i].setStyle({ opacity: i === idx ? 0.95 : 0.15, weight: i === idx ? 4 : 2 });
+      });
+
+      // 지도 두 점 피팅
+      const bounds = L.latLngBounds(
+        [pair.a.lat, pair.a.lng],
+        [pair.b.lat, pair.b.lng]
+      );
+      map.fitBounds(bounds.pad(0.25), { animate: true });
+    });
+
+    distCards.appendChild(card);
+  });
+
+  /* ── 지도 클릭 → 선 원래대로 ── */
+  map.on('click', () => {
+    document.querySelectorAll('.dist-card').forEach(c => c.classList.remove('active'));
+    PAIRS.forEach((_, i) => {
+      lines[i].setStyle({ opacity: 0.55, weight: 2.5 });
+    });
+  });
+</script>
+
+</body>
+</html>
